@@ -1,0 +1,231 @@
+<meta charset="utf-8">
+<title>Gatito — componente</title>
+
+<!-- =========================================================
+     DEMO: esta parte la borras. El componente es el <script>
+     de abajo (crearGato).
+     ========================================================= -->
+<style>
+  body{margin:0;min-height:100vh;display:flex;flex-direction:column;align-items:center;
+       justify-content:center;gap:30px;background:#14161F;color:#C7CCDC;
+       font:400 15px/1.6 system-ui,sans-serif}
+  #demo{width:230px}
+  .botones{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:440px}
+  button{font:inherit;font-size:14px;padding:7px 14px;border-radius:8px;cursor:pointer;
+         background:transparent;color:#C7CCDC;border:1px solid #3A405A}
+  button:hover{background:#242838}
+  button:focus-visible{outline:2px solid #FFC93C;outline-offset:2px}
+  p{margin:0;font-size:13px;color:#787F99}
+</style>
+
+<div id="demo"></div>
+
+<div class="botones">
+  <button onclick="gato.estado('idle')">idle</button>
+  <button onclick="gato.estado('pensando')">pensando</button>
+  <button onclick="gato.estado('hablando')">hablando</button>
+  <button onclick="gato.estado('feliz')">feliz</button>
+  <button onclick="gato.estado('error')">error</button>
+  <button onclick="gato.estado('dormido')">dormido</button>
+  <button onclick="gato.momento('feliz',1800)">momento feliz</button>
+  <button onclick="gato.arcoiris(!gato.conArcoiris)">arcoíris</button>
+  <button onclick="gato.seguirMouse(!gato.siguiendo)">seguir mouse</button>
+</div>
+
+<p>El arcoíris se apaga solo cuando está dormido.</p>
+
+<!-- =========================================================
+     COMPONENTE — copia desde aquí hasta el final
+     ========================================================= -->
+<script>
+function crearGato(contenedor, opciones = {}) {
+  const host = typeof contenedor === 'string'
+    ? document.querySelector(contenedor)
+    : contenedor;
+  if (!host) throw new Error('crearGato: no encontré el contenedor ' + contenedor);
+
+  const ESTADOS = ['idle', 'pensando', 'hablando', 'feliz', 'error', 'dormido'];
+
+  if (!document.getElementById('gato-css')) {
+    const css = document.createElement('style');
+    css.id = 'gato-css';
+    css.textContent = `
+.gato-wrap{position:relative;display:block;width:100%;
+  --pelo:#111318; --borde:#F4F2EA; --ojo:#FFC93C; --alerta:#FF5F6D;
+  --aura:conic-gradient(from 0deg,#FF5F6D,#FFC371,#47E6B1,#4FACFE,#C471ED,#FF5F6D)}
+.gato-wrap::before{content:"";position:absolute;inset:6% -14% 10%;border-radius:50%;
+  background:var(--aura);filter:blur(28px);opacity:.6;z-index:0;
+  animation:g-gira 7s linear infinite}
+.gato-wrap.g-sin-aura::before{display:none}
+.gato{position:relative;z-index:1;width:100%;height:auto;display:block;overflow:visible}
+
+.gato .g-silueta{fill:var(--pelo);stroke:var(--borde);stroke-width:9;
+  stroke-linejoin:round;paint-order:stroke fill}
+.gato .g-ojo{fill:none;stroke:var(--ojo);stroke-width:7;
+  transform-box:fill-box;transform-origin:center}
+.gato .g-arco,.gato .g-cerrado,.gato .g-equis{fill:none;stroke:var(--ojo);
+  stroke-width:6;stroke-linecap:round}
+.gato .g-boca{fill:none;stroke:var(--ojo);stroke-width:5;stroke-linecap:round;
+  transform-box:fill-box;transform-origin:center}
+.gato .g-punto{fill:var(--borde)}
+.gato .g-todo{transform-box:fill-box;transform-origin:50% 100%}
+
+.gato .g-arco,.gato .g-cerrado,.gato .g-equis,.gato .g-boca,.gato .g-spinner{opacity:0}
+
+/* idle */
+.gato-wrap[data-estado="idle"] .g-todo{animation:g-respira 4s ease-in-out infinite}
+.gato-wrap[data-estado="idle"] .g-ojo{animation:g-parpadeo 5s infinite}
+.gato-wrap[data-estado="idle"] .g-ojos{animation:g-mirar 7s ease-in-out infinite}
+.gato-wrap[data-estado="idle"].g-siguiendo .g-ojos{animation:none;transition:transform .18s ease-out}
+
+/* pensando */
+.gato-wrap[data-estado="pensando"]::before{animation-duration:2.4s;opacity:.75}
+.gato-wrap[data-estado="pensando"] .g-todo{animation:g-respira 5s ease-in-out infinite}
+.gato-wrap[data-estado="pensando"] .g-spinner{opacity:1}
+.gato-wrap[data-estado="pensando"] .g-punto{animation:g-pulso 1.2s linear infinite}
+.gato-wrap[data-estado="pensando"] .g-ojos{transform:translateY(-4px)}
+.gato-wrap[data-estado="pensando"] .g-ojo{animation:g-parpadeo 3s infinite}
+
+/* hablando */
+.gato-wrap[data-estado="hablando"] .g-todo{animation:g-respira 2.6s ease-in-out infinite}
+.gato-wrap[data-estado="hablando"] .g-ojo{animation:g-parpadeo 5s infinite}
+.gato-wrap[data-estado="hablando"] .g-boca{opacity:1;animation:g-hablar .4s ease-in-out infinite}
+
+/* feliz */
+.gato-wrap[data-estado="feliz"]::before{opacity:.85;animation-duration:3.5s}
+.gato-wrap[data-estado="feliz"] .g-ojo{opacity:0}
+.gato-wrap[data-estado="feliz"] .g-arco{opacity:1}
+.gato-wrap[data-estado="feliz"] .g-todo{animation:g-brinca 1s ease-in-out infinite}
+
+/* error */
+.gato-wrap[data-estado="error"]{--aura:conic-gradient(from 0deg,#FF5F6D,#7A1020,#FF5F6D,#7A1020,#FF5F6D)}
+.gato-wrap[data-estado="error"] .g-ojo{opacity:0}
+.gato-wrap[data-estado="error"] .g-equis{opacity:1;stroke:var(--alerta)}
+.gato-wrap[data-estado="error"] .g-todo{animation:g-tiembla .34s ease-in-out 3}
+
+/* dormido */
+.gato-wrap[data-estado="dormido"]::before{opacity:.18;animation-duration:18s}
+.gato-wrap[data-estado="dormido"] .g-ojo{opacity:0}
+.gato-wrap[data-estado="dormido"] .g-cerrado{opacity:1}
+.gato-wrap[data-estado="dormido"] .g-todo{animation:g-respira 6s ease-in-out infinite}
+
+@keyframes g-gira{to{transform:rotate(360deg)}}
+@keyframes g-parpadeo{0%,90%,100%{transform:scaleY(1)}94%{transform:scaleY(.1)}97%{transform:scaleY(1)}}
+@keyframes g-mirar{0%,22%{transform:translateX(0)}36%,50%{transform:translateX(9px)}
+  64%,78%{transform:translateX(-9px)}92%,100%{transform:translateX(0)}}
+@keyframes g-respira{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
+@keyframes g-brinca{0%,100%{transform:translateY(0)}40%{transform:translateY(-10px)}}
+@keyframes g-tiembla{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+@keyframes g-hablar{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
+@keyframes g-pulso{0%,100%{opacity:.2}20%{opacity:1}}
+
+@media (prefers-reduced-motion: reduce){
+  .gato-wrap *,.gato-wrap::before{animation:none !important}
+}`;
+    document.head.appendChild(css);
+  }
+
+  const puntos = Array.from({ length: 8 }, (_, i) =>
+    `<ellipse class="g-punto" cx="97" cy="72" rx="3.2" ry="6.2"
+       transform="rotate(${i * 45} 97 86)" style="animation-delay:${(i * 0.15).toFixed(2)}s"/>`
+  ).join('');
+
+  host.innerHTML = `
+<div class="gato-wrap" data-estado="idle">
+  <svg class="gato" viewBox="0 0 210 220" role="img"
+       aria-label="Gato asistente" xmlns="http://www.w3.org/2000/svg">
+    <g class="g-todo">
+      <path class="g-silueta" d="M54 26 C58 58 66 72 86 74 C96 54 106 34 114 20
+        C128 50 140 70 146 88 C154 116 158 148 162 172 C166 180 176 186 190 190
+        C196 192 196 198 190 199 C176 201 168 202 160 200 L58 200
+        C46 200 38 192 40 178 C44 140 48 80 54 26 Z"/>
+      <g class="g-spinner">${puntos}</g>
+      <g class="g-ojos">
+        <circle class="g-ojo" cx="74" cy="124" r="15"/>
+        <circle class="g-ojo" cx="118" cy="124" r="15"/>
+        <path class="g-arco" d="M60 130 Q74 112 88 130"/>
+        <path class="g-arco" d="M104 130 Q118 112 132 130"/>
+        <path class="g-cerrado" d="M60 120 Q74 133 88 120"/>
+        <path class="g-cerrado" d="M104 120 Q118 133 132 120"/>
+        <path class="g-equis" d="M64 114 L84 134 M84 114 L64 134"/>
+        <path class="g-equis" d="M108 114 L128 134 M128 114 L108 134"/>
+      </g>
+      <path class="g-boca" d="M86 152 Q96 162 106 152"/>
+    </g>
+  </svg>
+</div>`;
+
+  const wrap = host.querySelector('.gato-wrap');
+  const ojos = host.querySelector('.g-ojos');
+  let temporizador = null;
+  let onMove = null;
+
+  if (opciones.ojo)  wrap.style.setProperty('--ojo', opciones.ojo);
+  if (opciones.pelo) wrap.style.setProperty('--pelo', opciones.pelo);
+  if (opciones.borde) wrap.style.setProperty('--borde', opciones.borde);
+
+  const api = {
+    el: wrap,
+    siguiendo: false,
+    conArcoiris: opciones.arcoiris !== false,
+
+    estado(nombre) {
+      if (nombre === undefined) return wrap.dataset.estado;
+      if (!ESTADOS.includes(nombre)) {
+        console.warn('Gato: estado desconocido "' + nombre + '". Usa: ' + ESTADOS.join(', '));
+        return api;
+      }
+      clearTimeout(temporizador);
+      wrap.dataset.estado = nombre;
+      return api;
+    },
+
+    // Pone un estado un rato y vuelve solo a idle
+    momento(nombre, ms = 2000) {
+      api.estado(nombre);
+      temporizador = setTimeout(() => api.estado('idle'), ms);
+      return api;
+    },
+
+    arcoiris(activo = true) {
+      api.conArcoiris = activo;
+      wrap.classList.toggle('g-sin-aura', !activo);
+      return api;
+    },
+
+    seguirMouse(activo = true) {
+      api.siguiendo = activo;
+      wrap.classList.toggle('g-siguiendo', activo);
+      if (activo && !onMove) {
+        onMove = (e) => {
+          if (wrap.dataset.estado !== 'idle') return;
+          const c = wrap.getBoundingClientRect();
+          const dx = (e.clientX - (c.left + c.width / 2)) / (c.width / 2);
+          const dy = (e.clientY - (c.top + c.height / 2)) / (c.height / 2);
+          const x = Math.max(-1, Math.min(1, dx)) * 8;
+          const y = Math.max(-1, Math.min(1, dy)) * 5;
+          ojos.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+        };
+        window.addEventListener('mousemove', onMove);
+      }
+      if (!activo) {
+        ojos.style.transform = '';
+        if (onMove) { window.removeEventListener('mousemove', onMove); onMove = null; }
+      }
+      return api;
+    },
+
+    destruir() {
+      clearTimeout(temporizador);
+      if (onMove) window.removeEventListener('mousemove', onMove);
+      host.innerHTML = '';
+    }
+  };
+
+  if (!api.conArcoiris) api.arcoiris(false);
+  return api;
+}
+
+// Uso:
+const gato = crearGato('#demo');
+</script>
